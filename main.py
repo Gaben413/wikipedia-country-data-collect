@@ -1,5 +1,8 @@
 from bs4 import BeautifulSoup
 import requests
+import json
+import csv
+from openpyxl import Workbook
 
 def FetchCountriesLinks():
     URL = 'https://en.wikipedia.org/wiki/List_of_sovereign_states_and_dependent_territories_in_Asia'
@@ -32,11 +35,11 @@ def FetchCountriesLinks():
         'Cyprus',
         'Northern Cyprus ',
         'Egypt',
-        'Russia'
+        'Russia',
     ]
     links_dict = []
 
-    targets = [1, 2, 3, 5]
+    targets = [1, 2, 5]
 
     for target in targets:
         for row in tables[target].tbody.find_all('tr'):
@@ -58,10 +61,10 @@ dicts = FetchCountriesLinks()
 wikiURL = 'https://en.wikipedia.org'
 
 def GetGDP(input):
-    parts = input.replace('\xa0',' ').replace('[',' [').replace('$', '$ ').replace('.','').replace(',','').split(' ')
+    parts = input.replace('\xa0',' ').replace('[',' [').replace('$', '$ ').replace(',','.').split(' ')
 
     for part in parts:
-        if(part.isdigit()):
+        if(part.replace('.','').isdigit()):
             return part
         
 def GetReligion(input):
@@ -76,14 +79,19 @@ def GetReligion(input):
     
 def GetLanguage(input):
     if(len(input.find_all('li')) > 0):
-        return input.find_all('li')[0].find('a').text
+        if('[' in input.find_all('li')[0].find('a').text):
+            return input.find_all('li')[0].text
+        else:
+            return input.find_all('li')[0].find('a').text
     else:
         return input.find_all('a')[0].text
 
 def GetYear(input):
     parts = input.find('div').text.replace('\xa0', ' ').split(' ')
+    
+    output = 0
+
     for part in parts:
-        output = 0
         if(part.isdigit()):
             output = part
             
@@ -151,21 +159,27 @@ def FetchPageData(input):
     '''    
 
     hdi = ''
+    hdi_year = ''
 
     try:
         hdi = float(trs[obj['hdi']].td.text.replace('[',' [').replace(']', '] ').strip().split(' ')[0])
     except:
         hdi = 'Unknown'
 
+    try:
+        hdi_year = int(trs[obj['hdi']].th.find('span').text.replace('(','').replace(')',''))
+    except:
+        hdi_year = 'Unknown'
+
     data = {
         'country': input['country'],
         'population': int(trs[(obj['pops']+1)].td.text.replace('[',' [').strip().split(' ')[0].replace(',','')),
         'pops_year': int(GetYear(trs[(obj['pops']+1)].th)),
         'GDP_year': int(trs[(obj['gdp'])].td.text.replace('\xa0',' ').split(' ')[0]),
-        'GDP_total': int(GetGDP(trs[(obj['gdp']+1)].td.text)),
+        'GDP_total': float(GetGDP(trs[(obj['gdp']+1)].td.text)),
         'religion': GetReligion(trs[obj['rel']].td),
         'language': GetLanguage(trs[obj['lang']].td),
-        'hdi_year': trs[obj['hdi']].th.find('span').text.replace('(','').replace(')',''),
+        'hdi_year': hdi_year,
         'hdi': hdi
     }
     
@@ -179,3 +193,80 @@ for dict in dicts:
 
 print(len(data_array))
 
+def saveJSON(input):
+    json_dump = json.dumps(input, indent=3, ensure_ascii=False)
+
+    #print(json_dump)
+
+    with open('data.json', 'w', encoding='utf8') as outfile:
+        outfile.write(json_dump)
+    
+    print('JSON saved')
+
+headers = [
+    'country',
+    'population',
+    'pops_year',
+    'GDP_year',
+    'GDP_total',
+    'religion',
+    'language',
+    'hdi_year',
+    'hdi'
+]
+
+def saveCSV(input):
+    with open('data.csv', mode='w', encoding='utf8') as outfile:
+
+        filewriter = csv.writer(outfile, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+        filewriter.writerow(headers)
+
+        for obj in input:
+
+            filewriter.writerow([
+                obj['country'],
+                obj['population'],
+                obj['pops_year'],
+                obj['GDP_year'],
+                obj['GDP_total'],
+                obj['religion'],
+                obj['language'],
+                obj['hdi_year'],
+                obj['hdi'],
+            ])
+    print('CSV saved')
+
+def saveEXCEL(input):
+
+    filename = 'data.xlsx'
+
+    workbook = Workbook()
+    sheet = workbook.active
+
+    #SET HEADERS
+    for i, header in enumerate(headers):
+        sheet.cell(row=1, column=(i+1)).value = header
+
+    #ADD DATA
+    for i, obj in enumerate(input):
+        
+        sheet.cell(row=(i+2), column=1).value = obj['country']
+        sheet.cell(row=(i+2), column=2).value = obj['population']
+        sheet.cell(row=(i+2), column=3).value = obj['pops_year']
+        sheet.cell(row=(i+2), column=4).value = obj['GDP_year']
+        sheet.cell(row=(i+2), column=5).value = obj['GDP_total']
+        sheet.cell(row=(i+2), column=6).value = obj['religion']
+        sheet.cell(row=(i+2), column=7).value = obj['language']
+        sheet.cell(row=(i+2), column=8).value = obj['hdi_year']
+        sheet.cell(row=(i+2), column=9).value = obj['hdi']
+
+    sheet.freeze_panes = "A2"        
+
+    workbook.save(filename=filename)
+
+    print('EXCEL saved')
+
+saveJSON(data_array)
+saveCSV(data_array)
+saveEXCEL(data_array)
