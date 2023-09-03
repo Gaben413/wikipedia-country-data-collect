@@ -3,6 +3,7 @@ import requests
 import json
 import csv
 from openpyxl import Workbook
+import sys
 
 def FetchCountriesLinks():
     URL = 'https://en.wikipedia.org/wiki/List_of_sovereign_states_and_dependent_territories_in_Asia'
@@ -184,14 +185,20 @@ def FetchPageData(input):
     }
     
     #print(data)
+
     return data
 
 data_array = []
 
-for dict in dicts:
+for i,dict in enumerate(dicts):
+    '''
+    sys.stdout.write("\r" + str(int((i/len(dicts))*100))+"%")
+    sys.stdout.flush()
+    '''
+    print("\r" + str(int((i/len(dicts))*100))+"%")
     data_array.append(FetchPageData(dict))
 
-print(len(data_array))
+#print(len(data_array))
 
 def saveJSON(input):
     json_dump = json.dumps(input, indent=3, ensure_ascii=False)
